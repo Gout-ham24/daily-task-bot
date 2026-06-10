@@ -1,26 +1,43 @@
 """
 SILVER Task — News Headline Fetcher
-Fetches top India headlines using NewsAPI and extracts keyword trends.
+Fetches live India headlines using FREE RSS feeds.
+No API key needed — works perfectly on GitHub Actions.
+Sources: Google News India, NDTV, Times of India
 """
 
-import os
 import datetime
 import re
 from collections import Counter
-import requests
+import feedparser
 
-# Common words to ignore when finding trends
 STOP_WORDS = {
     "the", "a", "an", "in", "on", "at", "to", "of", "and", "or", "is",
     "are", "was", "were", "for", "with", "by", "from", "that", "this",
     "it", "its", "as", "be", "has", "have", "had", "but", "not", "no",
     "he", "she", "they", "we", "you", "i", "my", "his", "her", "their",
     "will", "can", "do", "did", "into", "over", "after", "says", "said",
-    "new", "up", "out", "india", "indian",
+    "new", "up", "out", "india", "indian", "news", "after", "amid",
 }
 
+RSS_FEEDS = [
+    {
+        "name": "Google News India",
+        "url": "https://news.google.com/rss/headlines/section/geo/IN?hl=en-IN&gl=IN&ceid=IN:en",
+    },
+    {
+        "name": "NDTV",
+        "url": "https://feeds.feedburner.com/ndtvnews-india-news",
+    },
+    {
+        "name": "Times of India",
+        "url": "https://timesofindia.indiatimes.com/rss/4719148.cms",
+    },
+]
 
-def extract_trends(headlines: list[str], top_n: int = 5) -> list[str]:
+MAX_PER_FEED = 5
+
+
+def extract_trends(headlines: list, top_n: int = 5) -> list:
     words = []
     for h in headlines:
         tokens = re.findall(r"\b[a-zA-Z]{4,}\b", h.lower())
@@ -30,36 +47,39 @@ def extract_trends(headlines: list[str], top_n: int = 5) -> list[str]:
 
 
 def get_news_data() -> dict:
-    api_key = os.environ["NEWS_API_KEY"]
+    all_headlines = []
 
-    url = "https://newsapi.org/v2/top-headlines"
-    params = {
-        "country": "in",
-        "pageSize": 10,
-        "apiKey": api_key,
-    }
+    for feed_info in RSS_FEEDS:
+        source = feed_info["name"]
+        try:
+            feed = feedparser.parse(feed_info["url"])
+            entries = feed.entries[:MAX_PER_FEED]
 
-    resp = requests.get(url, params=params, timeout=10)
-    resp.raise_for_status()
-    raw = resp.json()
+            for entry in entries:
+                title = entry.get("title", "").strip()
+                link = entry.get("link", "").strip()
 
-    articles = raw.get("articles", [])
-    headlines = []
+                # Clean "Title - Source" format from Google News
+                if " - " in title:
+                    title = title.rsplit(" - ", 1)[0].strip()
 
-    for art in articles:
-        title = art.get("title") or ""
-        if title and "[Removed]" not in title:
-            headlines.append({
-                "title": title.strip(),
-                "source": art.get("source", {}).get("name", "Unknown"),
-                "url": art.get("url", "#"),
-            })
+                if title:
+                    all_headlines.append({
+                        "title": title,
+                        "source": source,
+                        "url": link,
+                    })
 
-    trend_keywords = extract_trends([h["title"] for h in headlines])
+            print(f"      ✅ {source}: {len(entries)} headlines")
+
+        except Exception as e:
+            print(f"      ⚠ {source} failed: {e}")
+
+    trends = extract_trends([h["title"] for h in all_headlines])
 
     return {
-        "headlines": headlines,
-        "trends": trend_keywords,
-        "total": len(headlines),
+        "headlines": all_headlines,
+        "trends": trends,
+        "total": len(all_headlines),
         "fetched_at": datetime.datetime.now().strftime("%d %b %Y, %I:%M %p IST"),
     }
