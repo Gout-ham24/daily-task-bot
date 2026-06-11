@@ -10,43 +10,28 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 
-# ── HTML Template ────────────────────────────────────────────────────────────
-
 def build_html(results: dict) -> str:
     now = datetime.datetime.now().strftime("%A, %d %B %Y — %I:%M %p IST")
 
-    # ── Weather section ──────────────────────────────────────────
+    # ── Weather ──────────────────────────────────────────────────
     w = results.get("weather", {})
     if "error" in w:
         weather_html = f'<p class="error">⚠️ Weather fetch failed: {w["error"]}</p>'
     else:
         weather_html = f"""
         <div class="card">
-          <div class="card-header bronze">🥉 Weather — {w.get('city', '')}, {w.get('country', '')}</div>
+          <div class="card-header bronze">🥉 Weather — {w.get('city','')}, {w.get('country','')}</div>
           <div class="stats-grid">
-            <div class="stat">
-              <span class="stat-value">{w.get('temp', '—')}°C</span>
-              <span class="stat-label">Temperature</span>
-            </div>
-            <div class="stat">
-              <span class="stat-value">{w.get('feels_like', '—')}°C</span>
-              <span class="stat-label">Feels Like</span>
-            </div>
-            <div class="stat">
-              <span class="stat-value">{w.get('humidity', '—')}%</span>
-              <span class="stat-label">Humidity</span>
-            </div>
-            <div class="stat">
-              <span class="stat-value">{w.get('wind_speed', '—')} km/h</span>
-              <span class="stat-label">Wind Speed</span>
-            </div>
+            <div class="stat"><span class="stat-value">{w.get('temp','—')}°C</span><span class="stat-label">Temperature</span></div>
+            <div class="stat"><span class="stat-value">{w.get('feels_like','—')}°C</span><span class="stat-label">Feels Like</span></div>
+            <div class="stat"><span class="stat-value">{w.get('humidity','—')}%</span><span class="stat-label">Humidity</span></div>
+            <div class="stat"><span class="stat-value">{w.get('wind_speed','—')} km/h</span><span class="stat-label">Wind Speed</span></div>
           </div>
-          <p class="sub">{w.get('description', '')} &nbsp;·&nbsp; Visibility: {w.get('visibility', '—')} km
-            &nbsp;·&nbsp; 🌅 {w.get('sunrise', '—')} &nbsp; 🌇 {w.get('sunset', '—')}</p>
-        </div>
-        """
+          <p class="sub">{w.get('description','')} &nbsp;·&nbsp; Visibility: {w.get('visibility','—')} km
+            &nbsp;·&nbsp; 🌅 {w.get('sunrise','—')} &nbsp;🌇 {w.get('sunset','—')}</p>
+        </div>"""
 
-    # ── News section ─────────────────────────────────────────────
+    # ── News ─────────────────────────────────────────────────────
     n = results.get("news", {})
     if "error" in n:
         news_html = f'<p class="error">⚠️ News fetch failed: {n["error"]}</p>'
@@ -55,55 +40,51 @@ def build_html(results: dict) -> str:
         trend_badges = "".join(
             f'<span class="badge">{t}</span>' for t in n.get("trends", [])
         )
-        headline_rows = "".join(
-            f'<li><a href="{h["url"]}" style="color:#1a73e8;text-decoration:none;">{h["title"]}</a>'
-            f' <span class="src">— {h["source"]}</span></li>'
-            for h in headlines[:8]
-        )
+        headline_rows = ""
+        for h in headlines[:12]:
+            pub = f'<span class="pub-time">🕐 {h["published"]}</span>' if h.get("published") else ""
+            src = f'<span class="src">— {h["source"]}</span>'
+            headline_rows += (
+                f'<li>'
+                f'<a href="{h["url"]}" style="color:#1a73e8;text-decoration:none;">{h["title"]}</a>'
+                f' {src}{pub}'
+                f'</li>'
+            )
         news_html = f"""
         <div class="card">
           <div class="card-header silver">🥈 Top India Headlines</div>
           <div class="trends">Trending: {trend_badges}</div>
           <ul class="headlines">{headline_rows}</ul>
-          <p class="sub">Fetched {n.get('total', 0)} headlines · {n.get('fetched_at', '')}</p>
-        </div>
-        """
+          <p class="sub">Fetched {n.get('total',0)} headlines · {n.get('fetched_at','')}</p>
+        </div>"""
 
-    # ── Portfolio section ────────────────────────────────────────
+    # ── Portfolio ────────────────────────────────────────────────
     p = results.get("portfolio", {})
     if "error" in p:
         portfolio_html = f'<p class="error">⚠️ Portfolio update failed: {p["error"]}</p>'
     else:
         gh = p.get("github", {})
-        rebuild_status = "✅ Rebuild triggered" if p.get("netlify_rebuild_triggered") else "⚠️ Rebuild skipped"
-
+        rebuild_status = "✅ Netlify rebuild triggered" if p.get("netlify_rebuild_triggered") else "⚠️ Rebuild skipped"
         lang_pills = "".join(
             f'<span class="badge lang">{lang} <b>{count}</b></span>'
             for lang, count in sorted(gh.get("languages", {}).items(), key=lambda x: -x[1])
         )
-
         repo_rows = "".join(
-            f'<tr><td><a href="{r["url"]}" style="color:#1a73e8;text-decoration:none;">{r["name"]}</a></td>'
-            f'<td>{r["language"]}</td><td>⭐ {r["stars"]}</td><td>{r["updated"]}</td></tr>'
+            f'<tr>'
+            f'<td><a href="{r["url"]}" style="color:#1a73e8;text-decoration:none;">{r["name"]}</a></td>'
+            f'<td>{r["language"]}</td>'
+            f'<td>⭐ {r["stars"]}</td>'
+            f'<td>{r["updated"]}</td>'
+            f'</tr>'
             for r in gh.get("top_repos", [])
         )
-
         portfolio_html = f"""
         <div class="card">
           <div class="card-header gold">🥇 Portfolio — GitHub Stats</div>
           <div class="stats-grid">
-            <div class="stat">
-              <span class="stat-value">{gh.get('public_repos', 0)}</span>
-              <span class="stat-label">Repositories</span>
-            </div>
-            <div class="stat">
-              <span class="stat-value">{gh.get('followers', 0)}</span>
-              <span class="stat-label">Followers</span>
-            </div>
-            <div class="stat">
-              <span class="stat-value">{gh.get('following', 0)}</span>
-              <span class="stat-label">Following</span>
-            </div>
+            <div class="stat"><span class="stat-value">{gh.get('public_repos',0)}</span><span class="stat-label">Repositories</span></div>
+            <div class="stat"><span class="stat-value">{gh.get('followers',0)}</span><span class="stat-label">Followers</span></div>
+            <div class="stat"><span class="stat-value">{gh.get('following',0)}</span><span class="stat-label">Following</span></div>
           </div>
           <div class="trends">Languages: {lang_pills}</div>
           <table class="repo-table">
@@ -113,8 +94,7 @@ def build_html(results: dict) -> str:
           <p class="sub">{rebuild_status} &nbsp;·&nbsp;
             <a href="{p.get('portfolio_url','#')}" style="color:#1a73e8;">View Portfolio →</a>
             &nbsp;·&nbsp; {p.get('updated_at','')}</p>
-        </div>
-        """
+        </div>"""
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -150,11 +130,13 @@ def build_html(results: dict) -> str:
           border-radius:20px;padding:3px 10px;font-size:12px;font-weight:500;margin:2px 3px 2px 0}}
   .badge.lang{{background:#e8f5e9;color:#2e7d32}}
   .headlines{{padding-left:18px;margin:8px 0}}
-  .headlines li{{margin-bottom:7px;font-size:13.5px}}
+  .headlines li{{margin-bottom:10px;font-size:13.5px;line-height:1.5}}
   .src{{color:#8e8e93;font-size:11.5px}}
+  .pub-time{{display:block;color:#86868b;font-size:11px;margin-top:2px}}
   .repo-table{{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px}}
   .repo-table th{{text-align:left;color:#6e6e73;font-weight:500;
-                  padding:6px 8px;border-bottom:1px solid #e5e5ea;font-size:11px;text-transform:uppercase;letter-spacing:.4px}}
+                  padding:6px 8px;border-bottom:1px solid #e5e5ea;font-size:11px;
+                  text-transform:uppercase;letter-spacing:.4px}}
   .repo-table td{{padding:8px 8px;border-bottom:1px solid #f2f2f7}}
   .footer{{text-align:center;padding:20px;color:#8e8e93;font-size:12px}}
   .error{{color:#c0392b;background:#fdf2f2;padding:10px 14px;border-radius:8px;font-size:13px}}
@@ -181,12 +163,10 @@ def build_html(results: dict) -> str:
 </html>"""
 
 
-# ── Send via Gmail SMTP ──────────────────────────────────────────────────────
-
 def send_report(results: dict) -> None:
-    from_email = os.environ["FROM_EMAIL"]
+    from_email   = os.environ["FROM_EMAIL"]
     app_password = os.environ["APP_PASSWORD"]
-    to_email = os.environ["TO_EMAIL"]
+    to_email     = os.environ["TO_EMAIL"]
 
     subject = (
         f"🤖 Daily Task Bot — "
@@ -195,11 +175,10 @@ def send_report(results: dict) -> None:
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
-    msg["From"] = f"Daily Task Bot <{from_email}>"
-    msg["To"] = to_email
+    msg["From"]    = f"Daily Task Bot <{from_email}>"
+    msg["To"]      = to_email
 
-    html_content = build_html(results)
-    msg.attach(MIMEText(html_content, "html", "utf-8"))
+    msg.attach(MIMEText(build_html(results), "html", "utf-8"))
 
     with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
         server.login(from_email, app_password)
