@@ -1,8 +1,9 @@
 """
 SILVER Task — News Headline Fetcher
-Fetches live India headlines using FREE RSS feeds.
+Scrapes 3 news websites using FREE RSS feeds.
 No API key needed — works perfectly on GitHub Actions.
 Sources: Google News India, NDTV, Times of India
+Includes: source links + publication times
 """
 
 import datetime
@@ -16,7 +17,7 @@ STOP_WORDS = {
     "it", "its", "as", "be", "has", "have", "had", "but", "not", "no",
     "he", "she", "they", "we", "you", "i", "my", "his", "her", "their",
     "will", "can", "do", "did", "into", "over", "after", "says", "said",
-    "new", "up", "out", "india", "indian", "news", "after", "amid",
+    "new", "up", "out", "india", "indian", "news", "amid", "after",
 }
 
 RSS_FEEDS = [
@@ -35,6 +36,17 @@ RSS_FEEDS = [
 ]
 
 MAX_PER_FEED = 5
+
+
+def parse_pub_date(entry) -> str:
+    """Extract and format the publication time from a feed entry."""
+    try:
+        if hasattr(entry, "published_parsed") and entry.published_parsed:
+            dt = datetime.datetime(*entry.published_parsed[:6])
+            return dt.strftime("%d %b %Y, %I:%M %p")
+    except Exception:
+        pass
+    return ""
 
 
 def extract_trends(headlines: list, top_n: int = 5) -> list:
@@ -57,29 +69,32 @@ def get_news_data() -> dict:
 
             for entry in entries:
                 title = entry.get("title", "").strip()
-                link = entry.get("link", "").strip()
+                link  = entry.get("link", "").strip()
 
-                # Clean "Title - Source" format from Google News
+                # Clean "Headline - Source Name" format (Google News style)
                 if " - " in title:
                     title = title.rsplit(" - ", 1)[0].strip()
 
+                pub_time = parse_pub_date(entry)
+
                 if title:
                     all_headlines.append({
-                        "title": title,
-                        "source": source,
-                        "url": link,
+                        "title":      title,
+                        "source":     source,
+                        "url":        link,
+                        "published":  pub_time,
                     })
 
-            print(f"      ✅ {source}: {len(entries)} headlines")
+            print(f"      ✅ {source}: {len(entries)} headlines fetched")
 
         except Exception as e:
-            print(f"      ⚠ {source} failed: {e}")
+            print(f"      ⚠  {source} failed: {e}")
 
     trends = extract_trends([h["title"] for h in all_headlines])
 
     return {
-        "headlines": all_headlines,
-        "trends": trends,
-        "total": len(all_headlines),
+        "headlines":  all_headlines,
+        "trends":     trends,
+        "total":      len(all_headlines),
         "fetched_at": datetime.datetime.now().strftime("%d %b %Y, %I:%M %p IST"),
     }
