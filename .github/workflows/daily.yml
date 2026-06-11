@@ -2,11 +2,10 @@ name: Daily Task Bot
 
 on:
   schedule:
-    # All times in UTC (IST = UTC+5:30)
     - cron: "30 1 * * *"   # 07:00 IST
-    - cron: "30 15 * * *"  # 21:00 IST (9 PM)
-    - cron: "30 16 * * *"  # 22:00 IST (10 PM)
-  workflow_dispatch:        # manual trigger from Actions tab
+    - cron: "30 15 * * *"  # 21:00 IST
+    - cron: "30 16 * * *"  # 22:00 IST
+  workflow_dispatch:
 
 jobs:
   run-bot:
@@ -21,13 +20,12 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Cache pip dependencies
+      - name: Cache pip
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
+          restore-keys: ${{ runner.os }}-pip-
 
       - name: Install dependencies
         run: pip install -r requirements.txt
@@ -42,3 +40,11 @@ jobs:
           GITHUB_TOKEN:    ${{ secrets.GITHUB_TOKEN }}
           CITY:            Thiruvananthapuram
         run: python bot.py
+
+      - name: Commit projects.json to repo
+        run: |
+          git config user.name  "Daily Task Bot"
+          git config user.email "goutham24.2006@gmail.com"
+          git add projects.json || true
+          git diff --staged --quiet || git commit -m "bot: update projects.json [skip ci]"
+          git push || true
